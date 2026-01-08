@@ -1,0 +1,24 @@
+remnawave:
+  check-interval: 30
+
+domains:
+  - domain: example1.com
+    zones:
+      - name: s1
+        ttl: 120
+        proxied: false
+        ips:
+          - 1.2.3.4
+          - 5.6.7.8
+
+  - domain: example2.com
+    zones:
+      - name: s2
+        ttl: 120
+        proxied: false
+        ips:
+          - 13.14.15.16
+          - 17.18.19.20
+
+logging:
+  level: INFO

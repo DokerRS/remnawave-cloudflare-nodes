@@ -1,0 +1,47 @@
+from typing import List, Optional
+
+from remnawave import RemnawaveSDK
+from remnawave.models import NodeResponseDto
+
+from ..utils.logger import get_logger
+
+
+class RemnawaveClient:
+    def __init__(self, api_url: str, api_key: str):
+        self.api_url = api_url.rstrip("/")
+        self.api_key = api_key
+        self.logger = get_logger(__name__)
+        self.sdk = RemnawaveSDK(base_url=self.api_url, token=self.api_key)
+
+    async def get_nodes(self) -> List[NodeResponseDto]:
+        try:
+            self.logger.info(f"Fetching nodes from {self.api_url}")
+
+            response = await self.sdk.nodes.get_all_nodes()
+
+            nodes_list = response.root if hasattr(response, "root") else []
+
+            self.logger.info(f"Successfully fetched {len(nodes_list)} nodes")
+            return nodes_list
+
+        except Exception as e:
+            self.logger.error(f"Error fetching nodes: {e}")
+            raise
+
+    async def get_node_by_name(self, name: str) -> Optional[NodeResponseDto]:
+        nodes = await self.get_nodes()
+        for node in nodes:
+            if node.name == name:
+                return node
+        return None
+
+    async def get_node_by_address(self, address: str) -> Optional[NodeResponseDto]:
+        nodes = await self.get_nodes()
+        for node in nodes:
+            if node.address == address:
+                return node
+        return None
+
+    @staticmethod
+    def is_node_healthy(node: NodeResponseDto) -> bool:
+        return node.is_connected and not node.is_disabled and node.xray_version is not None
