@@ -12,6 +12,8 @@
   <a href="https://opensource.org/licenses/GPL-3.0"><img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License: GPL v3"></a>
 </p>
 
+English | [Русский](README.ru.md)
+
 Automatically manage Cloudflare DNS records based on Remnawave (https://docs.rw) node health status.
 
 ## Features
@@ -99,13 +101,18 @@ telegram:
 
 ### Configuration Reference
 
-| Variable                | Description                                        | Default | Required |
-|-------------------------|----------------------------------------------------|---------|----------|
-| `REMNAWAVE_API_URL`     | Remnawave API endpoint to fetch nodes from         | -       | Yes      |
-| `REMNAWAVE_API_KEY`     | API authentication token                           | -       | Yes      |
-| `CLOUDFLARE_API_TOKEN`  | Cloudflare API token with DNS edit permissions     | -       | Yes      |
-| `check-interval`        | Interval in seconds between health checks          | 30      | No       |
-| `logging.level`         | Log level (DEBUG, INFO, WARNING, ERROR)            | INFO    | No       |
+| Variable               | Description                                    | Default           | Required |
+|------------------------|------------------------------------------------|-------------------|----------|
+| `REMNAWAVE_API_URL`    | Remnawave API endpoint to fetch nodes from     | -                 | Yes      |
+| `REMNAWAVE_API_KEY`    | API authentication token                       | -                 | Yes      |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with DNS edit permissions | -                 | Yes      |
+| `TELEGRAM_BOT_TOKEN`   | Telegram bot token from @BotFather             | -                 | No       |
+| `TELEGRAM_CHAT_ID`     | Chat ID for notifications                      | -                 | No       |
+| `TELEGRAM_TOPIC_ID`    | Forum topic ID (for supergroups with topics)   | -                 | No       |
+| `TIMEZONE`             | Timezone for timestamps (e.g. Europe/Moscow)   | UTC               | No       |
+| `TIME_FORMAT`          | Time format for timestamps                     | %d.%m.%Y %H:%M:%S | No       |
+| `check-interval`       | Interval in seconds between health checks      | 30                | No       |
+| `logging.level`        | Log level (DEBUG, INFO, WARNING, ERROR)        | INFO              | No       |
 
 ## Installation
 
@@ -198,6 +205,58 @@ python -m src
    updates DNS records
 
 The service manages DNS records dynamically, ensuring only healthy nodes are included in DNS resolution.
+
+## Telegram Notifications
+
+The service can send real-time notifications to Telegram when events occur.
+
+### Setup
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and get the token
+2. Get your chat ID from [@username_to_id_bot](https://t.me/username_to_id_bot)
+3. Add the bot to your chat/group
+4. Configure environment variables:
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=123456789
+TELEGRAM_TOPIC_ID=              # Optional: for forum topics
+```
+
+5. Enable in `config.yml`:
+
+```yaml
+telegram:
+  enabled: true
+  locale: en  # en, ru
+```
+
+### Notification Types
+
+| Event             | Description           | Example                                                                                 |
+|-------------------|-----------------------|-----------------------------------------------------------------------------------------|
+| **Node Online**   | Node became healthy   | ✅ Node Online<br>node-1 (1.2.3.4) is now available.<br>📊 Nodes: 5/6 online, 0 disabled |
+| **Node Offline**  | Node became unhealthy | ❌ Node Offline<br>node-1 (1.2.3.4) is unavailable.<br>Reason: disconnected              |
+| **DNS Updated**   | DNS record added      | 📝 DNS Updated<br>Added 1.2.3.4 → s1.example.com                                        |
+| **DNS Removed**   | DNS record removed    | 🗑️ DNS Removed<br>Removed 1.2.3.4 from s1.example.com                                  |
+| **Critical**      | All nodes down        | 🔴 CRITICAL: All Nodes Down<br>All 5 nodes are unreachable.                             |
+| **Service Start** | Monitoring started    | 🚀 Service Started                                                                      |
+| **Service Stop**  | Monitoring stopped    | 🛑 Service Stopped                                                                      |
+
+### Configure Notifications
+
+You can enable/disable specific notification types:
+
+```yaml
+telegram:
+  enabled: true
+  locale: en
+  notify:
+    node_changes: true  # Node online/offline events
+    dns_changes: true   # DNS record add/remove
+    errors: true        # Error alerts
+    critical: true      # All nodes down alert
+```
 
 ### Logs
 
