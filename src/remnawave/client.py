@@ -23,24 +23,9 @@ class RemnawaveClient:
 
             self.logger.info(f"Successfully fetched {len(nodes_list)} nodes")
             return nodes_list
-
         except Exception as e:
             self.logger.error(f"Error fetching nodes: {e}")
             raise
-
-    async def get_node_by_name(self, name: str) -> Optional[NodeResponseDto]:
-        nodes = await self.get_nodes()
-        for node in nodes:
-            if node.name == name:
-                return node
-        return None
-
-    async def get_node_by_address(self, address: str) -> Optional[NodeResponseDto]:
-        nodes = await self.get_nodes()
-        for node in nodes:
-            if node.address == address:
-                return node
-        return None
 
     @staticmethod
     def is_node_connected(node: NodeResponseDto) -> bool:
