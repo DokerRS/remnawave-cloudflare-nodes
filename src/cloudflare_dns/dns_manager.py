@@ -36,7 +36,7 @@ class DNSManager:
         ]
 
         if ips_to_add:
-            self.logger.info(f"  {full_domain}: {', '.join(status_parts)}, adding: {', '.join(ips_to_add)}")
+            self.logger.info(f"{full_domain}: {', '.join(status_parts)}, adding: {', '.join(ips_to_add)}")
             for ip in ips_to_add:
                 try:
                     await self.client.create_dns_record(
@@ -47,7 +47,7 @@ class DNSManager:
                     self.logger.error(f"  Failed to add DNS record {ip}: {e}")
 
         if ips_to_remove:
-            self.logger.info(f"  {full_domain}: {', '.join(status_parts)}, removing: {', '.join(ips_to_remove)}")
+            self.logger.info(f"{full_domain}: {', '.join(status_parts)}, removing: {', '.join(ips_to_remove)}")
             for ip in ips_to_remove:
                 try:
                     record = existing_ips[ip]
@@ -59,9 +59,9 @@ class DNSManager:
         if not ips_to_add and not ips_to_remove:
             active_ips = [record["content"] for record in existing_records]
             if active_ips:
-                self.logger.info(f"  {full_domain}: {', '.join(status_parts)}, active: {', '.join(active_ips)}")
+                self.logger.info(f"{full_domain}: {', '.join(status_parts)}, active: {', '.join(active_ips)}")
             else:
-                self.logger.info(f"  {full_domain}: {', '.join(status_parts)}, no changes needed")
+                self.logger.info(f"{full_domain}: {', '.join(status_parts)}, no changes needed")
 
     async def get_all_zone_records(self, zone_id: str, domain: str) -> List[dict]:
         try:
