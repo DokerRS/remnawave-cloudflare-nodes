@@ -37,32 +37,64 @@ Before you begin, ensure you have the following:
 Copy [`.env.example`](.env.example) to `.env` and fill in your values:
 
 ```env
-# Remnawave API Configuration
+# Remnawave panel URL and API key
 REMNAWAVE_API_URL=https://panel.example.com
 REMNAWAVE_API_KEY=remnawave_api_key
 
-# Cloudflare API Configuration
+# Cloudflare token with DNS edit permissions
 CLOUDFLARE_API_TOKEN=cloudflare_api_token
+
+# Telegram bot token from @BotFather
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+# Chat ID (get from @username_to_id_bot)
+TELEGRAM_CHAT_ID=123456789
+# Forum topic ID (leave empty for regular chats)
+TELEGRAM_TOPIC_ID=
+
+# Timezone (e.g. UTC, Europe/Moscow, America/New_York)
+TIMEZONE=UTC
+# Time format: %d-day, %m-month, %Y-year, %H-hour, %M-min, %S-sec
+TIME_FORMAT="%d.%m.%Y %H:%M:%S"
 ```
 
 Copy [`config.example.yml`](config.example.yml) to `config.yml` and configure your domains:
 
 ```yaml
 remnawave:
+  # Health check interval in seconds
   check-interval: 30
 
+# Domains and DNS zones to manage
 domains:
-  - domain: example.com
+  - domain: example1.com
     zones:
-      - name: s1
-        ttl: 120
-        proxied: false
-        ips:
+      - name: s1          # Creates s1.example1.com
+        ttl: 60           # Record TTL in seconds
+        proxied: false    # Cloudflare proxy (orange cloud)
+        ips:              # Node IPs to monitor
           - 1.2.3.4
           - 5.6.7.8
 
+  - domain: example2.com
+    zones:
+      - name: s2
+        ttl: 60
+        proxied: false
+        ips:
+          - 13.14.15.16
+          - 17.18.19.20
+
 logging:
-  level: INFO
+  level: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+telegram:
+  enabled: false
+  locale: en  # en, ru
+  notify:
+    node_changes: true  # Node online/offline
+    dns_changes: true   # DNS record changes
+    errors: true        # Error alerts
+    critical: true      # All nodes down alert
 ```
 
 ### Configuration Reference
