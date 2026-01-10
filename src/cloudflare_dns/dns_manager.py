@@ -38,24 +38,20 @@ class DNSManager:
 
         configured_set = set(configured_ips)
         healthy_configured_ips = configured_set & healthy_ips
+        unhealthy_ips = configured_set - healthy_ips
 
         ips_to_add = configured_set & healthy_ips - set(existing_ips.keys())
         ips_to_remove = set(existing_ips.keys()) - (configured_set & healthy_ips)
 
-        status_parts = [
-            f"configured: {len(configured_ips)}",
-            f"healthy: {len(healthy_configured_ips)}",
-            f"existing: {len(existing_records)}",
-        ]
+        status = f"{len(healthy_configured_ips)}/{len(configured_ips)} online"
 
         if ips_to_add:
-            self.logger.info(f"{full_domain}: {', '.join(status_parts)}, adding: {', '.join(ips_to_add)}")
             for ip in ips_to_add:
                 try:
                     await self.client.create_dns_record(
                         zone_id=zone_id, name=full_domain, content=ip, record_type="A", ttl=ttl, proxied=proxied
                     )
-                    self.logger.info(f"  Added DNS record: {ip}")
+                    self.logger.info(f"{full_domain}: added {ip}")
                     if self.notifier and self.notify_dns_changes:
                         from ..telegram import DNSChange
 
@@ -63,7 +59,7 @@ class DNSManager:
                             DNSChange(domain=domain, zone_name=zone_name, ip_address=ip, action="added")
                         )
                 except Exception as e:
-                    self.logger.error(f"  Failed to add DNS record {ip}: {e}")
+                    self.logger.error(f"{full_domain}: failed to add {ip}: {e}")
                     if self.notifier and self.notify_errors:
                         from ..telegram import DNSError
 
@@ -74,12 +70,11 @@ class DNSManager:
                         )
 
         if ips_to_remove:
-            self.logger.info(f"{full_domain}: {', '.join(status_parts)}, removing: {', '.join(ips_to_remove)}")
             for ip in ips_to_remove:
                 try:
                     record = existing_ips[ip]
                     await self.client.delete_dns_record(zone_id, record["id"])
-                    self.logger.info(f"  Removed DNS record: {ip}")
+                    self.logger.info(f"{full_domain}: removed {ip}")
                     if self.notifier and self.notify_dns_changes:
                         from ..telegram import DNSChange
 
@@ -87,7 +82,7 @@ class DNSManager:
                             DNSChange(domain=domain, zone_name=zone_name, ip_address=ip, action="removed")
                         )
                 except Exception as e:
-                    self.logger.error(f"  Failed to remove DNS record {ip}: {e}")
+                    self.logger.error(f"{full_domain}: failed to remove {ip}: {e}")
                     if self.notifier and self.notify_errors:
                         from ..telegram import DNSError
 
@@ -98,11 +93,10 @@ class DNSManager:
                         )
 
         if not ips_to_add and not ips_to_remove:
-            active_ips = [record["content"] for record in existing_records]
-            if active_ips:
-                self.logger.info(f"{full_domain}: {', '.join(status_parts)}, active: {', '.join(active_ips)}")
+            if unhealthy_ips:
+                self.logger.info(f"{full_domain}: {status}, unhealthy: {', '.join(unhealthy_ips)}")
             else:
-                self.logger.info(f"{full_domain}: {', '.join(status_parts)}, no changes needed")
+                self.logger.info(f"{full_domain}: {status}")
 
     async def get_all_zone_records(self, zone_id: str, domain: str) -> List[dict]:
         try:

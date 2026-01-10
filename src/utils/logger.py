@@ -20,7 +20,9 @@ def setup_logger(name: str, level: str = "INFO", log_file: str = None):
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
-    logging.getLogger("httpx").setLevel(logging.DEBUG)
+    http_level = logging.DEBUG if level.upper() == "DEBUG" else logging.WARNING
+    logging.getLogger("httpx").setLevel(http_level)
+    logging.getLogger("httpcore").setLevel(http_level)
 
     if log_file:
         log_path = Path(log_file)

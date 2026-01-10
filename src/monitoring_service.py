@@ -77,12 +77,8 @@ class MonitoringService:
             healthy_addresses = {node.address for node in healthy_nodes}
 
             self.logger.info(
-                f"Configured nodes: {len(configured_nodes)}, Healthy: {len(healthy_nodes)}, Unhealthy: {len(unhealthy_nodes)}"
+                f"Nodes: {len(healthy_nodes)}/{len(configured_nodes)} online, {len(unhealthy_nodes)} unhealthy"
             )
-
-            if healthy_nodes:
-                healthy_addrs = [node.address for node in healthy_nodes]
-                self.logger.info(f"Healthy nodes: {', '.join(healthy_addrs)}")
 
             if unhealthy_nodes:
                 unhealthy_info = []
@@ -149,8 +145,6 @@ class MonitoringService:
         configured_ips = zone_config.get("ips", [])
         ttl = zone_config.get("ttl", 120)
         proxied = zone_config.get("proxied", False)
-
-        self.logger.info(f"Syncing zone: {zone_name}.{domain}")
 
         await self.dns_manager.sync_dns_records(
             zone_id=zone_id,

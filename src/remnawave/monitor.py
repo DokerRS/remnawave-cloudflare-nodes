@@ -64,10 +64,8 @@ class NodeMonitor:
                 self.logger.debug(f"Node {node.name} ({node.address}): {status}")
 
             healthy_count = sum(1 for s in node_statuses if s.is_healthy)
-            self.logger.info(
-                f"Checked {len(node_statuses)} nodes: "
-                f"{healthy_count} healthy, {len(node_statuses) - healthy_count} unhealthy"
-            )
+            unhealthy_count = len(node_statuses) - healthy_count
+            self.logger.info(f"Fetched {len(node_statuses)} nodes: {healthy_count} online, {unhealthy_count} unhealthy")
 
             return node_statuses
 
