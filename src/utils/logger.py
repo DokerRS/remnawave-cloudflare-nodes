@@ -20,6 +20,8 @@ def setup_logger(name: str, level: str = "INFO", log_file: str = None):
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
+    logging.getLogger("httpx").setLevel(logging.DEBUG)
+
     if log_file:
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
