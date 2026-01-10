@@ -1,21 +1,32 @@
-from typing import Dict, Set
+from typing import TYPE_CHECKING, Dict, Optional, Set
 
 from .config import Config
 from .remnawave import NodeMonitor
 from .cloudflare_dns import CloudflareClient, DNSManager
 from .utils.logger import get_logger
 
+if TYPE_CHECKING:
+    from .telegram import TelegramNotifier
+
 
 class MonitoringService:
     def __init__(
-        self, config: Config, node_monitor: NodeMonitor, cloudflare_client: CloudflareClient, dns_manager: DNSManager
+        self,
+        config: Config,
+        node_monitor: NodeMonitor,
+        cloudflare_client: CloudflareClient,
+        dns_manager: DNSManager,
+        notifier: Optional["TelegramNotifier"] = None,
     ):
         self.config = config
         self.node_monitor = node_monitor
         self.cloudflare_client = cloudflare_client
         self.dns_manager = dns_manager
+        self.notifier = notifier
         self.logger = get_logger(__name__)
         self._zone_id_cache: Dict[str, str] = {}
+        self._previous_node_states: Dict[str, bool] = {}
+        self._previous_all_down: bool = False
 
     async def initialize_and_print_zones(self) -> None:
         self.logger.info("Initializing zones")
@@ -77,14 +88,17 @@ class MonitoringService:
                 unhealthy_info = []
                 for node in unhealthy_nodes:
                     reason = []
-                    if not node.details.get("is_connected"):
+                    if not node.is_connected:
                         reason.append("disconnected")
-                    if node.details.get("is_disabled"):
+                    if node.is_disabled:
                         reason.append("disabled")
-                    if not node.details.get("xray_version"):
+                    if not node.xray_version:
                         reason.append("no xray")
                     unhealthy_info.append(f"{node.address} ({', '.join(reason)})")
                 self.logger.info(f"Unhealthy nodes: {'; '.join(unhealthy_info)}")
+
+            self._check_node_transitions(configured_nodes)
+            self._check_critical_state(configured_nodes, unhealthy_nodes)
 
             await self._sync_all_zones(healthy_addresses)
 
@@ -92,6 +106,10 @@ class MonitoringService:
 
         except Exception as e:
             self.logger.error(f"Error during health check: {e}", exc_info=True)
+            if self.notifier and self.config.telegram_notify_errors:
+                from .telegram import HealthCheckError
+
+                self.notifier.notify_health_check_error(HealthCheckError(error_message=str(e)))
             raise
 
     def _get_all_configured_ips(self) -> Set[str]:
@@ -143,3 +161,61 @@ class MonitoringService:
             ttl=ttl,
             proxied=proxied,
         )
+
+    def _check_node_transitions(self, nodes) -> None:
+        if not self.notifier or not self.config.telegram_notify_node_changes:
+            return
+
+        from .telegram import NodeStateChange, NodeStats
+
+        total = len(nodes)
+        online = sum(1 for n in nodes if n.is_healthy)
+        disabled = sum(1 for n in nodes if n.is_disabled)
+        stats = NodeStats(total=total, online=online, disabled=disabled)
+
+        for node in nodes:
+            prev_healthy = self._previous_node_states.get(node.address)
+            curr_healthy = node.is_healthy
+
+            if prev_healthy is None or prev_healthy == curr_healthy:
+                self._previous_node_states[node.address] = curr_healthy
+                continue
+
+            reason = None
+            if not curr_healthy:
+                reasons = []
+                if not node.is_connected:
+                    reasons.append("disconnected")
+                if node.is_disabled:
+                    reasons.append("disabled")
+                if not node.xray_version:
+                    reasons.append("no xray")
+                reason = ", ".join(reasons) if reasons else "unknown"
+
+            self.notifier.notify_node_state_change(
+                NodeStateChange(
+                    node_name=node.name,
+                    node_address=node.address,
+                    previous_healthy=prev_healthy,
+                    current_healthy=curr_healthy,
+                    stats=stats,
+                    reason=reason,
+                )
+            )
+
+            self._previous_node_states[node.address] = curr_healthy
+
+    def _check_critical_state(self, configured_nodes, unhealthy_nodes) -> None:
+        if not self.notifier or not self.config.telegram_notify_critical:
+            return
+
+        all_down = 0 < len(configured_nodes) == len(unhealthy_nodes)
+
+        if all_down and not self._previous_all_down:
+            from .telegram import CriticalState
+
+            self.notifier.notify_critical_state(
+                CriticalState(total_nodes=len(configured_nodes), down_nodes=[n.address for n in unhealthy_nodes])
+            )
+
+        self._previous_all_down = all_down

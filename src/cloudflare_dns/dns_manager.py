@@ -1,12 +1,25 @@
-from typing import List, Set
+from typing import TYPE_CHECKING, List, Optional, Set
+
 from .client import CloudflareClient
 from ..utils.logger import get_logger
 
+if TYPE_CHECKING:
+    from ..telegram import TelegramNotifier
+
 
 class DNSManager:
-    def __init__(self, client: CloudflareClient):
+    def __init__(
+        self,
+        client: CloudflareClient,
+        notifier: Optional["TelegramNotifier"] = None,
+        notify_dns_changes: bool = True,
+        notify_errors: bool = True,
+    ):
         self.client = client
         self.logger = get_logger(__name__)
+        self.notifier = notifier
+        self.notify_dns_changes = notify_dns_changes
+        self.notify_errors = notify_errors
 
     async def sync_dns_records(
         self,
@@ -43,8 +56,22 @@ class DNSManager:
                         zone_id=zone_id, name=full_domain, content=ip, record_type="A", ttl=ttl, proxied=proxied
                     )
                     self.logger.info(f"  Added DNS record: {ip}")
+                    if self.notifier and self.notify_dns_changes:
+                        from ..telegram import DNSChange
+
+                        self.notifier.notify_dns_change(
+                            DNSChange(domain=domain, zone_name=zone_name, ip_address=ip, action="added")
+                        )
                 except Exception as e:
                     self.logger.error(f"  Failed to add DNS record {ip}: {e}")
+                    if self.notifier and self.notify_errors:
+                        from ..telegram import DNSError
+
+                        self.notifier.notify_dns_error(
+                            DNSError(
+                                domain=domain, zone_name=zone_name, ip_address=ip, action="add", error_message=str(e)
+                            )
+                        )
 
         if ips_to_remove:
             self.logger.info(f"{full_domain}: {', '.join(status_parts)}, removing: {', '.join(ips_to_remove)}")
@@ -53,8 +80,22 @@ class DNSManager:
                     record = existing_ips[ip]
                     await self.client.delete_dns_record(zone_id, record["id"])
                     self.logger.info(f"  Removed DNS record: {ip}")
+                    if self.notifier and self.notify_dns_changes:
+                        from ..telegram import DNSChange
+
+                        self.notifier.notify_dns_change(
+                            DNSChange(domain=domain, zone_name=zone_name, ip_address=ip, action="removed")
+                        )
                 except Exception as e:
                     self.logger.error(f"  Failed to remove DNS record {ip}: {e}")
+                    if self.notifier and self.notify_errors:
+                        from ..telegram import DNSError
+
+                        self.notifier.notify_dns_error(
+                            DNSError(
+                                domain=domain, zone_name=zone_name, ip_address=ip, action="remove", error_message=str(e)
+                            )
+                        )
 
         if not ips_to_add and not ips_to_remove:
             active_ips = [record["content"] for record in existing_records]

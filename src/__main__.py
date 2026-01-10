@@ -6,6 +6,7 @@ from .config import Config
 from .remnawave import RemnawaveClient, NodeMonitor
 from .cloudflare_dns import CloudflareClient, DNSManager
 from .monitoring_service import MonitoringService
+from .telegram import TelegramNotifier
 from .utils.logger import setup_logger
 
 
@@ -54,14 +55,34 @@ async def main():
 
     node_monitor = NodeMonitor(remnawave_client)
 
+    notifier = TelegramNotifier(
+        bot_token=config.telegram_bot_token,
+        chat_id=config.telegram_chat_id,
+        topic_id=config.telegram_topic_id,
+        locale=config.telegram_locale,
+        enabled=config.telegram_enabled,
+    )
+
     cloudflare_client = CloudflareClient(api_token=config.cloudflare_token)
-    dns_manager = DNSManager(cloudflare_client)
+    dns_manager = DNSManager(
+        client=cloudflare_client,
+        notifier=notifier,
+        notify_dns_changes=config.telegram_notify_dns_changes,
+        notify_errors=config.telegram_notify_errors,
+    )
 
     monitoring_service = MonitoringService(
-        config=config, node_monitor=node_monitor, cloudflare_client=cloudflare_client, dns_manager=dns_manager
+        config=config,
+        node_monitor=node_monitor,
+        cloudflare_client=cloudflare_client,
+        dns_manager=dns_manager,
+        notifier=notifier,
     )
 
     try:
+        await notifier.start()
+        notifier.notify_service_started()
+
         await monitoring_service.initialize_and_print_zones()
 
         await run_monitoring_loop(service=monitoring_service, interval=config.check_interval, logger=logger)
@@ -70,6 +91,9 @@ async def main():
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
+    finally:
+        notifier.notify_service_stopped()
+        await notifier.stop()
 
     logger.info("Remnawave-Cloudflare DNS Monitor stopped")
 

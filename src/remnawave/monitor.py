@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List, Optional
 from uuid import UUID
 
 
@@ -7,11 +7,29 @@ from ..utils.logger import get_logger
 
 
 class NodeStatus:
-    def __init__(self, name: str, address: str, is_healthy: bool, details: Dict):
+    def __init__(
+        self,
+        name: str,
+        address: str,
+        is_healthy: bool,
+        is_connected: bool,
+        is_disabled: bool,
+        xray_version: Optional[str],
+        xray_uptime: Optional[int] = None,
+        port: Optional[int] = None,
+        users_online: int = 0,
+        uuid: Optional[str] = None,
+    ):
         self.name = name
         self.address = address
         self.is_healthy = is_healthy
-        self.details = details
+        self.is_connected = is_connected
+        self.is_disabled = is_disabled
+        self.xray_version = xray_version
+        self.xray_uptime = xray_uptime
+        self.port = port
+        self.users_online = users_online
+        self.uuid = uuid
 
     def __repr__(self):
         status = "healthy" if self.is_healthy else "unhealthy"
@@ -29,24 +47,21 @@ class NodeMonitor:
             node_statuses = []
 
             for node in nodes:
-                name = node.name
-                address = node.address
-                is_healthy = self.client.is_node_healthy(node)
-
-                details = {
-                    "uuid": str(node.uuid) if isinstance(node.uuid, UUID) else node.uuid,
-                    "is_connected": node.is_connected,
-                    "is_disabled": node.is_disabled,
-                    "xray_version": node.xray_version,
-                    "xray_uptime": node.xray_uptime,
-                    "port": node.port,
-                    "users_online": node.users_online or 0,
-                }
-
-                status = NodeStatus(name, address, is_healthy, details)
+                status = NodeStatus(
+                    name=node.name,
+                    address=node.address,
+                    is_healthy=self.client.is_node_healthy(node),
+                    is_connected=node.is_connected,
+                    is_disabled=node.is_disabled,
+                    xray_version=node.xray_version,
+                    xray_uptime=node.xray_uptime,
+                    port=node.port,
+                    users_online=node.users_online or 0,
+                    uuid=str(node.uuid) if isinstance(node.uuid, UUID) else node.uuid,
+                )
                 node_statuses.append(status)
 
-                self.logger.debug(f"Node {name} ({address}): {status}")
+                self.logger.debug(f"Node {node.name} ({node.address}): {status}")
 
             healthy_count = sum(1 for s in node_statuses if s.is_healthy)
             self.logger.info(
