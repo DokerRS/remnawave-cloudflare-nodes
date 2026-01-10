@@ -1,4 +1,5 @@
 name: Update DockerHub Description
+
 on:
   push:
     branches:
@@ -6,14 +7,16 @@ on:
     paths:
       - README.md
       - .github/workflows/dockerhub-readme.yaml
+
 jobs:
-  PushContainerReadme:
+  push-readme:
     runs-on: ubuntu-latest
     name: Push README to Docker Hub
     steps:
-      - name: git checkout
-        uses: actions/checkout@v2
-      - name: push README to Dockerhub
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Push README to DockerHub
         uses: christian-korneck/update-container-description-action@v1
         env:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
