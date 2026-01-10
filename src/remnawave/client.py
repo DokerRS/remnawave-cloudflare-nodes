@@ -43,5 +43,13 @@ class RemnawaveClient:
         return None
 
     @staticmethod
+    def is_node_connected(node: NodeResponseDto) -> bool:
+        return node.is_connected and node.xray_version is not None
+
+    @staticmethod
+    def is_node_disabled(node: NodeResponseDto) -> bool:
+        return node.is_disabled
+
+    @staticmethod
     def is_node_healthy(node: NodeResponseDto) -> bool:
-        return node.is_connected and not node.is_disabled and node.xray_version is not None
+        return node.is_node_connected() and not node.is_node_disabled()
