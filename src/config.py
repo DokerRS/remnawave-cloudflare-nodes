@@ -141,7 +141,24 @@ class Config:
                     "name": zone.get("name"),
                     "ttl": zone.get("ttl", 120),
                     "proxied": zone.get("proxied", False),
-                    "ips": zone.get("ips", []),
+                    "ips": self._parse_weighted_ips(zone.get("ips", [])),
                 }
                 zones.append(zone_data)
         return zones
+
+    @staticmethod
+    def _parse_weighted_ips(ips_config: list) -> dict[str, int]:
+        result = {}
+        for item in ips_config:
+            if isinstance(item, str):
+                ip = item
+                weight = 1
+            elif isinstance(item, dict):
+                ip = item.get("ip", "")
+                weight = item.get("weight", 1)
+            else:
+                continue
+
+            if ip:
+                result[ip] = max(1, int(weight))
+        return result

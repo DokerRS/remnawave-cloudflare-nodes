@@ -31,35 +31,31 @@ class MonitoringService:
     async def initialize_and_print_zones(self) -> None:
         self.logger.info("Initializing zones")
 
-        for domain_config in self.config.domains:
-            domain = domain_config.get("domain")
-            zones = domain_config.get("zones", [])
+        current_domain = None
+        for zone in self.config.get_all_zones():
+            domain = zone["domain"]
+
+            if domain != current_domain:
+                zone_id = await self._get_zone_id(domain)
+                if not zone_id:
+                    self.logger.warning(f"Could not find zone_id for domain {domain}")
+                    continue
+                self.logger.info(f"Domain: {domain}, Zone ID: {zone_id}")
+                current_domain = domain
+
+            full_domain = f"{zone['name']}.{domain}"
+            self.logger.info(f"  Zone: {full_domain}, TTL: {zone['ttl']}, Proxied: {zone['proxied']}")
+
+            ips_with_weights = [f"{ip}(w={w})" if w > 1 else ip for ip, w in zone["ips"].items()]
+            self.logger.info(f"  Configured IPs: {', '.join(ips_with_weights)}")
 
             zone_id = await self._get_zone_id(domain)
-            if not zone_id:
-                self.logger.warning(f"Could not find zone_id for domain {domain}")
-                continue
-
-            self.logger.info(f"Domain: {domain}, Zone ID: {zone_id}")
-
-            for zone_config in zones:
-                zone_name = zone_config.get("name")
-                configured_ips = zone_config.get("ips", [])
-                ttl = zone_config.get("ttl", 120)
-                proxied = zone_config.get("proxied", False)
-                full_domain = f"{zone_name}.{domain}"
-
-                self.logger.info(f"  Zone: {full_domain}, TTL: {ttl}, Proxied: {proxied}")
-                self.logger.info(f"  Configured IPs: {', '.join(configured_ips)}")
-
-                existing_records = await self.cloudflare_client.get_dns_records(
-                    zone_id, name=full_domain, record_type="A"
-                )
-                if existing_records:
-                    existing_ips = [record["content"] for record in existing_records]
-                    self.logger.info(f"  Existing DNS records: {', '.join(existing_ips)}")
-                else:
-                    self.logger.info("  Existing DNS records: None")
+            existing_records = await self.cloudflare_client.get_dns_records(zone_id, name=full_domain, record_type="A")
+            if existing_records:
+                existing_ips = [record["content"] for record in existing_records]
+                self.logger.info(f"  Existing DNS records: {', '.join(existing_ips)}")
+            else:
+                self.logger.info("  Existing DNS records: None")
 
         self.logger.info("Initialization complete")
 
@@ -110,27 +106,30 @@ class MonitoringService:
 
     def _get_all_configured_ips(self) -> Set[str]:
         configured_ips = set()
-        for domain_config in self.config.domains:
-            zones = domain_config.get("zones", [])
-            for zone_config in zones:
-                ips = zone_config.get("ips", [])
-                configured_ips.update(ips)
+        for zone in self.config.get_all_zones():
+            configured_ips.update(zone["ips"].keys())
         return configured_ips
 
     async def _sync_all_zones(self, healthy_addresses: Set[str]) -> None:
-        for domain_config in self.config.domains:
-            domain = domain_config.get("domain")
-            zones = domain_config.get("zones", [])
+        for zone in self.config.get_all_zones():
+            domain = zone["domain"]
 
             zone_id = await self._get_zone_id(domain)
             if not zone_id:
                 self.logger.warning(f"Could not find zone_id for domain {domain}, skipping")
                 continue
 
-            for zone_config in zones:
-                await self._sync_zone(domain, zone_id, zone_config, healthy_addresses)
+            await self.dns_manager.sync_dns_records(
+                zone_id=zone_id,
+                zone_name=zone["name"],
+                domain=domain,
+                configured_ips=zone["ips"],
+                healthy_ips=healthy_addresses,
+                ttl=zone["ttl"],
+                proxied=zone["proxied"],
+            )
 
-    async def _get_zone_id(self, domain: str) -> str:
+    async def _get_zone_id(self, domain: str) -> Optional[str]:
         if domain in self._zone_id_cache:
             return self._zone_id_cache[domain]
 
@@ -139,22 +138,6 @@ class MonitoringService:
             self._zone_id_cache[domain] = zone_id
 
         return zone_id
-
-    async def _sync_zone(self, domain: str, zone_id: str, zone_config: Dict, healthy_addresses: Set[str]) -> None:
-        zone_name = zone_config.get("name")
-        configured_ips = zone_config.get("ips", [])
-        ttl = zone_config.get("ttl", 120)
-        proxied = zone_config.get("proxied", False)
-
-        await self.dns_manager.sync_dns_records(
-            zone_id=zone_id,
-            zone_name=zone_name,
-            domain=domain,
-            configured_ips=configured_ips,
-            healthy_ips=healthy_addresses,
-            ttl=ttl,
-            proxied=proxied,
-        )
 
     def _check_node_transitions(self, nodes) -> None:
         if not self.notifier or not self.config.telegram_notify_node_changes:

@@ -2,6 +2,13 @@ remnawave:
   # Health check interval in seconds
   check-interval: 30
 
+# IP weight = number of DNS records. Traffic is distributed via round-robin.
+# Examples:
+#   - 2 IPs with weight 1 each   -> 50% / 50%
+#   - 2 IPs with weight 1 and 2  -> 33% / 67%
+#   - 3 IPs with weight 1 each   -> 33% / 33% / 33%
+#   - 3 IPs with weight 1, 1, 2  -> 25% / 25% / 50%
+
 # Domains and DNS zones to manage
 domains:
   - domain: example1.com
@@ -10,8 +17,9 @@ domains:
         ttl: 60           # Record TTL in seconds
         proxied: false    # Cloudflare proxy (orange cloud)
         ips:              # Node IPs to monitor
-          - 1.2.3.4
-          - 5.6.7.8
+          - 1.2.3.4     # Simple format (weight=1)
+          - ip: 5.6.7.8   # Extended format with weight
+            weight: 2     # Creates 2 DNS records for this IP
 
   - domain: example2.com
     zones:
