@@ -1,4 +1,4 @@
-name: Update DockerHub Description
+name: DockerHub README
 
 on:
   push:
@@ -11,7 +11,6 @@ on:
 jobs:
   push-readme:
     runs-on: ubuntu-latest
-    name: Push README to Docker Hub
     steps:
       - name: Checkout
         uses: actions/checkout@v4
