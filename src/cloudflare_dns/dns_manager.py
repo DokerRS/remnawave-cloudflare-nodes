@@ -1,4 +1,3 @@
-from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 from .client import CloudflareClient
@@ -27,7 +26,7 @@ class DNSManager:
         zone_id: str,
         zone_name: str,
         domain: str,
-        configured_ips: Dict[str, int],
+        configured_ips: List[str],
         healthy_ips: Set[str],
         ttl: int = 120,
         proxied: bool = False,
@@ -35,51 +34,33 @@ class DNSManager:
         full_domain = f"{zone_name}.{domain}"
 
         existing_records = await self.client.get_dns_records(zone_id, name=full_domain, record_type="A")
+        existing_ips = {record["content"] for record in existing_records}
+        existing_by_ip: Dict[str, dict] = {record["content"]: record for record in existing_records}
 
-        # Count existing records per IP
-        existing_counts: Dict[str, int] = defaultdict(int)
-        existing_by_ip: Dict[str, List[dict]] = defaultdict(list)
-        for record in existing_records:
-            ip = record["content"]
-            existing_counts[ip] += 1
-            existing_by_ip[ip].append(record)
-
-        configured_set = set(configured_ips.keys())
+        configured_set = set(configured_ips)
         healthy_configured_ips = configured_set & healthy_ips
         unhealthy_ips = configured_set - healthy_ips
 
         added_count = 0
         removed_count = 0
 
-        # Process each configured IP
-        for ip, desired_weight in configured_ips.items():
-            current_count = existing_counts.get(ip, 0)
+        # Add records for healthy IPs that don't have a record yet
+        for ip in healthy_configured_ips:
+            if ip not in existing_ips:
+                if await self._add_record(zone_id, full_domain, domain, zone_name, ip, ttl, proxied):
+                    added_count += 1
 
-            if ip in healthy_ips:
-                # Healthy IP: ensure we have exactly desired_weight records
-                if current_count < desired_weight:
-                    # Add missing records
-                    for _ in range(desired_weight - current_count):
-                        if await self._add_record(zone_id, full_domain, domain, zone_name, ip, ttl, proxied):
-                            added_count += 1
-                elif current_count > desired_weight:
-                    # Remove excess records
-                    records_to_remove = existing_by_ip[ip][: current_count - desired_weight]
-                    for record in records_to_remove:
-                        if await self._remove_record(zone_id, domain, zone_name, ip, record):
-                            removed_count += 1
-            else:
-                # Unhealthy IP: remove all records
-                for record in existing_by_ip[ip]:
-                    if await self._remove_record(zone_id, domain, zone_name, ip, record):
-                        removed_count += 1
+        # Remove records for unhealthy IPs
+        for ip in unhealthy_ips:
+            if ip in existing_by_ip:
+                if await self._remove_record(zone_id, domain, zone_name, ip, existing_by_ip[ip]):
+                    removed_count += 1
 
         # Remove records for IPs not in config
-        for ip, records in existing_by_ip.items():
+        for ip, record in existing_by_ip.items():
             if ip not in configured_set:
-                for record in records:
-                    if await self._remove_record(zone_id, domain, zone_name, ip, record):
-                        removed_count += 1
+                if await self._remove_record(zone_id, domain, zone_name, ip, record):
+                    removed_count += 1
 
         status = f"{len(healthy_configured_ips)}/{len(configured_ips)} online"
 

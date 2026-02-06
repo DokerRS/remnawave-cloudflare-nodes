@@ -46,8 +46,7 @@ class MonitoringService:
             full_domain = f"{zone['name']}.{domain}"
             self.logger.info(f"  Zone: {full_domain}, TTL: {zone['ttl']}, Proxied: {zone['proxied']}")
 
-            ips_with_weights = [f"{ip}(w={w})" if w > 1 else ip for ip, w in zone["ips"].items()]
-            self.logger.info(f"  Configured IPs: {', '.join(ips_with_weights)}")
+            self.logger.info(f"  Configured IPs: {', '.join(zone['ips'])}")
 
             zone_id = await self._get_zone_id(domain)
             existing_records = await self.cloudflare_client.get_dns_records(zone_id, name=full_domain, record_type="A")
@@ -107,7 +106,7 @@ class MonitoringService:
     def _get_all_configured_ips(self) -> Set[str]:
         configured_ips = set()
         for zone in self.config.get_all_zones():
-            configured_ips.update(zone["ips"].keys())
+            configured_ips.update(zone["ips"])
         return configured_ips
 
     async def _sync_all_zones(self, healthy_addresses: Set[str]) -> None:

@@ -77,6 +77,9 @@ class CloudflareClient:
                 }
 
             except Exception as e:
+                status_code = getattr(e, "status_code", None)
+                if status_code and 400 <= status_code < 500:
+                    raise
                 attempt += 1
                 self.logger.error(f"Error creating DNS record (attempt {attempt}): {e}")
                 await self._retry_delay(attempt)
